@@ -10,7 +10,8 @@ const orderSchema = new mongoose.Schema({
   merchant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Merchant is required']
+    required: [true, 'Merchant is required'],
+    index: true
   },
   customer: {
     type: mongoose.Schema.Types.ObjectId,
@@ -20,25 +21,30 @@ const orderSchema = new mongoose.Schema({
   customerInfo: {
     name: {
       type: String,
-      required: [true, 'Customer name is required']
+      required: [true, 'Customer name is required'],
+      trim: true
     },
     phone: {
       type: String,
-      required: [true, 'Customer phone is required']
+      required: [true, 'Customer phone is required'],
+      match: [/^\+?[\d\s-()]+$/, 'Please enter a valid phone number']
     },
     email: {
       type: String,
       lowercase: true,
-      trim: true
+      trim: true,
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
     },
     address: {
       street: {
         type: String,
-        required: [true, 'Street address is required']
+        required: [true, 'Delivery street address is required'],
+        trim: true
       },
       city: {
         type: String,
-        required: [true, 'City is required']
+        required: [true, 'Delivery city is required'],
+        trim: true
       },
       state: String,
       zipCode: String,
@@ -48,7 +54,15 @@ const orderSchema = new mongoose.Schema({
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        index: '2dsphere'
+        index: '2dsphere',
+        validate: {
+          validator: function(arr) {
+            return arr.length === 2 && 
+                   arr[0] >= -180 && arr[0] <= 180 && 
+                   arr[1] >= -90 && arr[1] <= 90;
+          },
+          message: 'Coordinates must be [longitude, latitude] with valid ranges'
+        }
       },
       notes: String // Delivery instructions
     }
@@ -56,11 +70,13 @@ const orderSchema = new mongoose.Schema({
   pickupAddress: {
     street: {
       type: String,
-      required: [true, 'Pickup street address is required']
+      required: [true, 'Pickup street address is required'],
+      trim: true
     },
     city: {
       type: String,
-      required: [true, 'Pickup city is required']
+      required: [true, 'Pickup city is required'],
+      trim: true
     },
     state: String,
     zipCode: String,
@@ -71,18 +87,22 @@ const orderSchema = new mongoose.Schema({
     coordinates: {
       type: [Number], // [longitude, latitude]
       index: '2dsphere',
-      required: true
+      required: [true, 'Pickup coordinates are required']
     },
     contactPerson: String,
     contactPhone: String,
-    notes: String
+    notes: String // Pickup instructions
   },
   items: [{
     name: {
       type: String,
-      required: [true, 'Item name is required']
+      required: [true, 'Item name is required'],
+      trim: true
     },
-    description: String,
+    description: {
+      type: String,
+      trim: true
+    },
     sku: String,
     quantity: {
       type: Number,
@@ -92,12 +112,12 @@ const orderSchema = new mongoose.Schema({
     weight: {
       type: Number,
       required: [true, 'Item weight is required'],
-      min: [0.1, 'Weight must be at least 0.1 kg']
+      min: [0.01, 'Weight must be at least 0.01 kg']
     },
     dimensions: {
-      length: Number,
-      width: Number,
-      height: Number
+      length: { type: Number, min: 0 },
+      width: { type: Number, min: 0 },
+      height: { type: Number, min: 0 }
     },
     value: {
       type: Number,
@@ -106,10 +126,14 @@ const orderSchema = new mongoose.Schema({
     },
     category: {
       type: String,
-      enum: ['electronics', 'clothing', 'books', 'food', 'fragile', 'documents', 'other'],
+      enum: ['electronics', 'clothing', 'books', 'food', 'fragile', 'documents', 'medical', 'other'],
       default: 'other'
     },
     isFragile: {
+      type: Boolean,
+      default: false
+    },
+    requiresRefrigeration: {
       type: Boolean,
       default: false
     }
@@ -130,6 +154,11 @@ const orderSchema = new mongoose.Schema({
       default: 0,
       min: 0
     },
+    fees: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     discount: {
       type: Number,
       default: 0,
@@ -143,32 +172,39 @@ const orderSchema = new mongoose.Schema({
     currency: {
       type: String,
       default: 'EGP',
-      uppercase: true
+      uppercase: true,
+      enum: ['EGP', 'USD', 'EUR']
     }
   },
   payment: {
     method: {
       type: String,
-      enum: ['cod', 'prepaid', 'card', 'wallet'],
+      enum: ['cod', 'prepaid', 'card', 'wallet', 'bank_transfer'],
       required: true
     },
     status: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'failed', 'refunded', 'partial'],
       default: 'pending'
     },
     transactionId: String,
     paidAt: Date,
-    codAmount: Number // Cash on delivery amount
+    codAmount: Number, // Cash on delivery amount
+    paymentDetails: {
+      cardLast4: String,
+      paymentGateway: String,
+      gatewayTransactionId: String
+    }
   },
   status: {
     type: String,
     enum: [
-      'pending',           // Order created, waiting for pickup
+      'pending',           // Order created, waiting for confirmation
       'confirmed',         // Order confirmed by merchant
-      'pickup_scheduled',  // Pickup scheduled
+      'pickup_scheduled',  // Pickup scheduled with driver
       'picked_up',        // Items collected from merchant
-      'in_transit',       // On the way to destination
+      'in_transit',       // On the way to destination hub
+      'at_hub',           // Arrived at destination hub
       'out_for_delivery', // Out for final delivery
       'delivered',        // Successfully delivered
       'failed_delivery',  // Delivery attempt failed
@@ -176,16 +212,18 @@ const orderSchema = new mongoose.Schema({
       'cancelled',        // Order cancelled
       'refunded'          // Order refunded
     ],
-    default: 'pending'
+    default: 'pending',
+    index: true
   },
   priority: {
     type: String,
     enum: ['low', 'normal', 'high', 'urgent'],
-    default: 'normal'
+    default: 'normal',
+    index: true
   },
   serviceType: {
     type: String,
-    enum: ['standard', 'express', 'same_day', 'next_day'],
+    enum: ['standard', 'express', 'same_day', 'next_day', 'scheduled'],
     required: true,
     default: 'standard'
   },
@@ -194,14 +232,20 @@ const orderSchema = new mongoose.Schema({
     timeSlot: {
       start: String, // "09:00"
       end: String    // "17:00"
-    }
+    },
+    instructions: String
   },
   scheduledDelivery: {
     date: Date,
     timeSlot: {
       start: String,
       end: String
-    }
+    },
+    instructions: String
+  },
+  assignedDriver: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Driver'
   },
   assignedHub: {
     type: mongoose.Schema.Types.ObjectId,
@@ -211,13 +255,16 @@ const orderSchema = new mongoose.Schema({
     trackingNumber: {
       type: String,
       unique: true,
-      sparse: true
+      sparse: true,
+      uppercase: true
     },
     currentLocation: {
       type: [Number], // [longitude, latitude]
       index: '2dsphere'
     },
     estimatedDelivery: Date,
+    actualPickupTime: Date,
+    actualDeliveryTime: Date,
     statusHistory: [{
       status: {
         type: String,
@@ -234,22 +281,14 @@ const orderSchema = new mongoose.Schema({
       updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
+      },
+      metadata: {
+        reason: String,
+        automaticUpdate: Boolean
       }
     }]
   },
-  specialInstructions: String,
-  internalNotes: String, // For admin/driver notes
-  metadata: {
-    source: {
-      type: String,
-      enum: ['web', 'mobile_app', 'shopify', 'woocommerce', 'api'],
-      default: 'web'
-    },
-    sourceOrderId: String, // Original order ID from e-commerce platform
-    tags: [String],
-    customFields: mongoose.Schema.Types.Mixed
-  },
-  attempts: [{
+  deliveryAttempts: [{
     attemptNumber: {
       type: Number,
       required: true
@@ -260,7 +299,7 @@ const orderSchema = new mongoose.Schema({
     },
     result: {
       type: String,
-      enum: ['success', 'failed', 'rescheduled'],
+      enum: ['success', 'failed', 'rescheduled', 'customer_not_available'],
       required: true
     },
     reason: String,
@@ -269,89 +308,166 @@ const orderSchema = new mongoose.Schema({
       ref: 'User'
     },
     notes: String,
-    photo: String, // Photo evidence
-    signature: String // Digital signature
-  }]
+    evidence: {
+      photos: [String],
+      signature: String,
+      recipientName: String,
+      recipientId: String
+    },
+    nextAttemptScheduled: Date
+  }],
+  specialInstructions: {
+    type: String,
+    maxLength: [500, 'Special instructions cannot exceed 500 characters']
+  },
+  internalNotes: {
+    type: String,
+    maxLength: [1000, 'Internal notes cannot exceed 1000 characters']
+  },
+  metadata: {
+    source: {
+      type: String,
+      enum: ['web', 'mobile_app', 'shopify', 'woocommerce', 'api', 'manual'],
+      default: 'web'
+    },
+    sourceOrderId: String, // Original order ID from e-commerce platform
+    tags: [String],
+    customFields: mongoose.Schema.Types.Mixed,
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    lastModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
+  notifications: {
+    customerNotified: {
+      created: { type: Boolean, default: false },
+      confirmed: { type: Boolean, default: false },
+      pickedUp: { type: Boolean, default: false },
+      outForDelivery: { type: Boolean, default: false },
+      delivered: { type: Boolean, default: false }
+    },
+    merchantNotified: {
+      created: { type: Boolean, default: false },
+      pickedUp: { type: Boolean, default: false },
+      delivered: { type: Boolean, default: false }
+    }
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Virtual for total weight
+// Virtual fields
 orderSchema.virtual('totalWeight').get(function() {
   return this.items.reduce((total, item) => total + (item.weight * item.quantity), 0);
 });
 
-// Virtual for total items count
 orderSchema.virtual('totalItems').get(function() {
   return this.items.reduce((total, item) => total + item.quantity, 0);
 });
 
-// Virtual for days since order
+orderSchema.virtual('totalVolume').get(function() {
+  return this.items.reduce((total, item) => {
+    if (item.dimensions && item.dimensions.length && item.dimensions.width && item.dimensions.height) {
+      return total + (item.dimensions.length * item.dimensions.width * item.dimensions.height * item.quantity);
+    }
+    return total;
+  }, 0);
+});
+
 orderSchema.virtual('daysSinceOrder').get(function() {
   return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
 });
 
-// Indexes for better query performance
+orderSchema.virtual('isFragileOrder').get(function() {
+  return this.items.some(item => item.isFragile);
+});
+
+orderSchema.virtual('requiresRefrigeration').get(function() {
+  return this.items.some(item => item.requiresRefrigeration);
+});
+
+// Indexes for performance
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ merchant: 1, status: 1 });
 orderSchema.index({ customer: 1 });
 orderSchema.index({ 'customerInfo.phone': 1 });
 orderSchema.index({ 'tracking.trackingNumber': 1 });
-orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ status: 1, priority: 1, createdAt: -1 });
 orderSchema.index({ 'customerInfo.address.coordinates': '2dsphere' });
 orderSchema.index({ 'pickupAddress.coordinates': '2dsphere' });
+orderSchema.index({ assignedDriver: 1, status: 1 });
+orderSchema.index({ assignedHub: 1, status: 1 });
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ 'scheduledPickup.date': 1 });
+orderSchema.index({ 'scheduledDelivery.date': 1 });
 
-// Pre-save middleware to generate order number and tracking number
+// Pre-save middleware
 orderSchema.pre('save', async function(next) {
-  if (this.isNew) {
-    // Generate order number
-    if (!this.orderNumber) {
-      const count = await mongoose.model('Order').countDocuments();
-      this.orderNumber = `ORD${Date.now()}${(count + 1).toString().padStart(4, '0')}`;
+  try {
+    if (this.isNew) {
+      // Generate order number
+      if (!this.orderNumber) {
+        const count = await mongoose.model('Order').countDocuments();
+        const timestamp = Date.now().toString().slice(-6);
+        this.orderNumber = `ORD${timestamp}${(count + 1).toString().padStart(4, '0')}`;
+      }
+      
+      // Generate tracking number
+      if (!this.tracking.trackingNumber) {
+        this.tracking.trackingNumber = `TRK${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      }
+      
+      // Add initial status to history
+      this.tracking.statusHistory.push({
+        status: this.status,
+        timestamp: new Date(),
+        notes: 'Order created',
+        updatedBy: this.metadata.createdBy
+      });
+      
+      // Calculate pricing if not provided
+      if (!this.pricing.subtotal && this.items.length > 0) {
+        this.pricing.subtotal = this.items.reduce((total, item) => total + (item.value * item.quantity), 0);
+      }
+      
+      if (!this.pricing.total) {
+        this.pricing.total = this.pricing.subtotal + this.pricing.shippingCost + this.pricing.taxes + this.pricing.fees - this.pricing.discount;
+      }
     }
     
-    // Generate tracking number
-    if (!this.tracking.trackingNumber) {
-      this.tracking.trackingNumber = `TRK${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    // Update status history if status changed
+    if (this.isModified('status') && !this.isNew) {
+      this.tracking.statusHistory.push({
+        status: this.status,
+        timestamp: new Date(),
+        updatedBy: this.metadata.lastModifiedBy
+      });
     }
     
-    // Add initial status to history
-    this.tracking.statusHistory.push({
-      status: this.status,
-      timestamp: new Date(),
-      notes: 'Order created'
-    });
+    next();
+  } catch (error) {
+    next(error);
   }
-  
-  next();
 });
 
-// Pre-save middleware to update status history
-orderSchema.pre('save', function(next) {
-  if (this.isModified('status') && !this.isNew) {
-    this.tracking.statusHistory.push({
-      status: this.status,
-      timestamp: new Date()
-    });
-  }
-  next();
-});
-
-// Static method to find orders by status
-orderSchema.statics.findByStatus = function(status, limit = 10) {
+// Static methods
+orderSchema.statics.findByStatus = function(status, limit = 50) {
   return this.find({ status })
     .populate('merchant', 'firstName lastName email phone')
     .populate('customer', 'firstName lastName email phone')
+    .populate('assignedDriver', 'firstName lastName phone')
     .sort({ createdAt: -1 })
     .limit(limit);
 };
 
-// Static method to find orders in area
-orderSchema.statics.findInArea = function(coordinates, radius = 5000) {
-  return this.find({
+orderSchema.statics.findInArea = function(coordinates, radius = 5000, status = null) {
+  const query = {
     'customerInfo.address.coordinates': {
       $near: {
         $geometry: {
@@ -361,12 +477,33 @@ orderSchema.statics.findInArea = function(coordinates, radius = 5000) {
         $maxDistance: radius
       }
     }
-  });
+  };
+  
+  if (status) {
+    query.status = status;
+  }
+  
+  return this.find(query);
 };
 
-// Instance method to update status
+orderSchema.statics.findByMerchant = function(merchantId, options = {}) {
+  const query = { merchant: merchantId };
+  
+  if (options.status) query.status = options.status;
+  if (options.startDate) query.createdAt = { $gte: options.startDate };
+  if (options.endDate) query.createdAt = { ...query.createdAt, $lte: options.endDate };
+  
+  return this.find(query)
+    .populate('customer', 'firstName lastName phone')
+    .sort({ createdAt: -1 })
+    .limit(options.limit || 50);
+};
+
+// Instance methods
 orderSchema.methods.updateStatus = function(newStatus, notes, updatedBy) {
   this.status = newStatus;
+  this.metadata.lastModifiedBy = updatedBy;
+  
   this.tracking.statusHistory.push({
     status: newStatus,
     timestamp: new Date(),
@@ -374,24 +511,83 @@ orderSchema.methods.updateStatus = function(newStatus, notes, updatedBy) {
     updatedBy
   });
   
+  // Update specific timestamps
+  if (newStatus === 'picked_up') {
+    this.tracking.actualPickupTime = new Date();
+  } else if (newStatus === 'delivered') {
+    this.tracking.actualDeliveryTime = new Date();
+  }
+  
   return this.save();
 };
 
-// Instance method to add delivery attempt
-orderSchema.methods.addDeliveryAttempt = function(result, reason, driver, notes, photo, signature) {
-  const attemptNumber = this.attempts.length + 1;
+orderSchema.methods.addDeliveryAttempt = function(result, reason, driver, notes, evidence) {
+  const attemptNumber = this.deliveryAttempts.length + 1;
   
-  this.attempts.push({
+  this.deliveryAttempts.push({
     attemptNumber,
     result,
     reason,
     driver,
     notes,
-    photo,
-    signature
+    evidence
   });
   
+  // Update status based on attempt result
+  if (result === 'success') {
+    this.status = 'delivered';
+    this.tracking.actualDeliveryTime = new Date();
+  } else if (result === 'failed' && attemptNumber >= 3) {
+    this.status = 'returned';
+  }
+  
   return this.save();
+};
+
+orderSchema.methods.calculateDistance = function() {
+  if (!this.pickupAddress.coordinates || !this.customerInfo.address.coordinates) {
+    return null;
+  }
+  
+  const [pickupLng, pickupLat] = this.pickupAddress.coordinates;
+  const [deliveryLng, deliveryLat] = this.customerInfo.address.coordinates;
+  
+  const R = 6371; // Earth's radius in km
+  const dLat = (deliveryLat - pickupLat) * Math.PI / 180;
+  const dLng = (deliveryLng - pickupLng) * Math.PI / 180;
+  
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(pickupLat * Math.PI / 180) * Math.cos(deliveryLat * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in km
+};
+
+orderSchema.methods.estimateDeliveryTime = function() {
+  const distance = this.calculateDistance();
+  if (!distance) return null;
+  
+  let baseTime = 60; // Base time in minutes
+  let speedKmH = 30; // Average speed in Cairo traffic
+  
+  // Adjust based on service type
+  switch (this.serviceType) {
+    case 'same_day':
+      speedKmH = 35;
+      baseTime = 30;
+      break;
+    case 'express':
+      speedKmH = 40;
+      baseTime = 45;
+      break;
+    case 'next_day':
+      baseTime = 24 * 60; // 24 hours
+      break;
+  }
+  
+  const travelTime = (distance / speedKmH) * 60; // Convert to minutes
+  return baseTime + travelTime;
 };
 
 const Order = mongoose.model('Order', orderSchema);

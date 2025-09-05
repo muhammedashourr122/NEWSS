@@ -4,74 +4,100 @@
     <title>Shipping System API Tester</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
         button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
         button:hover { background: #0056b3; }
-        textarea { width: 100%; height: 100px; margin: 10px 0; }
-        .result { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; }
-        input { padding: 8px; margin: 5px; width: 200px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .result { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        input, select { padding: 8px; margin: 5px; width: 200px; border: 1px solid #ddd; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .token-display { background: #e9ecef; padding: 10px; border-radius: 3px; font-family: monospace; word-break: break-all; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🚚 Shipping System API Tester</h1>
+        <p>Testing your authentication system at <strong>http://localhost:5000</strong></p>
         
         <div class="section">
-            <h3>📊 Server Status</h3>
-            <button onclick="testServer()">Test Server</button>
-            <div id="serverResult" class="result"></div>
+            <h3>📊 Server Health Check</h3>
+            <button onclick="testHealth()">Test Server Health</button>
+            <div id="healthResult" class="result"></div>
         </div>
 
         <div class="section">
             <h3>👤 User Registration</h3>
-            <input type="text" id="firstName" placeholder="First Name" value="John">
-            <input type="text" id="lastName" placeholder="Last Name" value="Doe">
-            <input type="email" id="email" placeholder="Email" value="john@test.com">
-            <input type="password" id="password" placeholder="Password" value="Test123!">
-            <select id="role">
-                <option value="customer">Customer</option>
-                <option value="merchant">Merchant</option>
-                <option value="driver">Driver</option>
-            </select>
-            <br>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                <input type="text" id="firstName" placeholder="First Name" value="Browser">
+                <input type="text" id="lastName" placeholder="Last Name" value="Test">
+                <input type="email" id="email" placeholder="Email" value="">
+                <input type="tel" id="phone" placeholder="Phone" value="">
+                <input type="password" id="password" placeholder="Password" value="BrowserTest123!">
+                <select id="role">
+                    <option value="customer">Customer</option>
+                    <option value="merchant">Merchant</option>
+                    <option value="driver">Driver</option>
+                </select>
+            </div>
+            <button onclick="generateRandomUser()">Generate Random User</button>
             <button onclick="registerUser()">Register User</button>
             <div id="registerResult" class="result"></div>
         </div>
 
         <div class="section">
             <h3>🔐 User Login</h3>
-            <input type="email" id="loginEmail" placeholder="Email" value="admin@shippingsystem.com">
-            <input type="password" id="loginPassword" placeholder="Password" value="Admin123!@#">
+            <input type="email" id="loginEmail" placeholder="Email" value="">
+            <input type="password" id="loginPassword" placeholder="Password" value="">
             <br>
+            <button onclick="useRegisteredUser()">Use Last Registered User</button>
             <button onclick="loginUser()">Login</button>
             <div id="loginResult" class="result"></div>
+            <div id="tokenDisplay" class="token-display" style="display: none;"></div>
         </div>
 
         <div class="section">
-            <h3>📦 Create Order</h3>
-            <input type="text" id="customerName" placeholder="Customer Name" value="Ahmed Hassan">
-            <input type="tel" id="customerPhone" placeholder="Customer Phone" value="+201234567890">
-            <input type="number" id="orderTotal" placeholder="Total Amount" value="1000">
+            <h3>👤 Get User Profile</h3>
+            <button onclick="getUserProfile()" disabled id="profileBtn">Get My Profile</button>
+            <div id="profileResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>✏️ Update Profile</h3>
+            <input type="text" id="updateFirstName" placeholder="New First Name" value="Updated">
+            <select id="updateLanguage">
+                <option value="en">English</option>
+                <option value="ar">Arabic</option>
+            </select>
             <br>
-            <button onclick="createOrder()">Create Order</button>
-            <div id="orderResult" class="result"></div>
+            <button onclick="updateProfile()" disabled id="updateBtn">Update Profile</button>
+            <div id="updateResult" class="result"></div>
         </div>
 
         <div class="section">
-            <h3>📋 View All Data</h3>
-            <button onclick="getAllUsers()">Get All Users</button>
-            <button onclick="getAllOrders()">Get All Orders</button>
-            <div id="dataResult" class="result"></div>
+            <h3>🔄 Password Reset</h3>
+            <input type="email" id="resetEmail" placeholder="Email for reset" value="">
+            <br>
+            <button onclick="requestPasswordReset()">Request Password Reset</button>
+            <div id="resetResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔒 Security Tests</h3>
+            <button onclick="testUnauthorizedAccess()">Test Unauthorized Access</button>
+            <button onclick="testInvalidToken()">Test Invalid Token</button>
+            <div id="securityResult" class="result"></div>
         </div>
     </div>
 
     <script>
         const API_BASE = 'http://localhost:5000/api';
+        let authToken = '';
+        let currentUser = {};
 
-        async function makeRequest(url, method = 'GET', data = null) {
+        async function makeRequest(url, method = 'GET', data = null, useAuth = false) {
             try {
                 const options = {
                     method,
@@ -80,12 +106,22 @@
                     }
                 };
 
+                if (useAuth && authToken) {
+                    options.headers['Authorization'] = `Bearer ${authToken}`;
+                }
+
                 if (data) {
                     options.body = JSON.stringify(data);
                 }
 
                 const response = await fetch(url, options);
-                const result = await response.json();
+                let result;
+                
+                try {
+                    result = await response.json();
+                } catch (e) {
+                    result = { error: 'Invalid JSON response' };
+                }
                 
                 return {
                     success: response.ok,
@@ -102,13 +138,51 @@
 
         function displayResult(elementId, result) {
             const element = document.getElementById(elementId);
-            element.className = 'result ' + (result.success ? 'success' : 'error');
-            element.innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            let className = 'result ';
+            
+            if (result.success) {
+                className += 'success';
+            } else if (result.status >= 400 && result.status < 500) {
+                className += 'warning';
+            } else {
+                className += 'error';
+            }
+            
+            element.className = className;
+            element.textContent = JSON.stringify(result, null, 2);
         }
 
-        async function testServer() {
-            const result = await makeRequest('http://localhost:5000/');
-            displayResult('serverResult', result);
+        function generateRandomUser() {
+            const timestamp = Date.now();
+            document.getElementById('email').value = `test.${timestamp}@example.com`;
+            document.getElementById('phone').value = `+2011${Math.floor(Math.random() * 100000000)}`;
+        }
+
+        function useRegisteredUser() {
+            if (currentUser.email) {
+                document.getElementById('loginEmail').value = currentUser.email;
+                document.getElementById('loginPassword').value = currentUser.password;
+                document.getElementById('resetEmail').value = currentUser.email;
+            }
+        }
+
+        function updateAuthState(token, user) {
+            authToken = token;
+            if (token) {
+                document.getElementById('profileBtn').disabled = false;
+                document.getElementById('updateBtn').disabled = false;
+                document.getElementById('tokenDisplay').style.display = 'block';
+                document.getElementById('tokenDisplay').textContent = `Auth Token: ${token.substring(0, 50)}...`;
+            } else {
+                document.getElementById('profileBtn').disabled = true;
+                document.getElementById('updateBtn').disabled = true;
+                document.getElementById('tokenDisplay').style.display = 'none';
+            }
+        }
+
+        async function testHealth() {
+            const result = await makeRequest('http://localhost:5000/health');
+            displayResult('healthResult', result);
         }
 
         async function registerUser() {
@@ -116,12 +190,24 @@
                 firstName: document.getElementById('firstName').value,
                 lastName: document.getElementById('lastName').value,
                 email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
                 password: document.getElementById('password').value,
                 role: document.getElementById('role').value
             };
 
-            const result = await makeRequest(API_BASE + '/auth/register', 'POST', data);
+            // Store for later use
+            currentUser = {
+                email: data.email,
+                password: data.password
+            };
+
+            const result = await makeRequest(`${API_BASE}/auth/register`, 'POST', data);
             displayResult('registerResult', result);
+            
+            if (result.success && result.data.data) {
+                updateAuthState(result.data.data.token, result.data.data.user);
+                useRegisteredUser(); // Auto-fill login form
+            }
         }
 
         async function loginUser() {
@@ -130,37 +216,70 @@
                 password: document.getElementById('loginPassword').value
             };
 
-            const result = await makeRequest(API_BASE + '/auth/login', 'POST', data);
+            const result = await makeRequest(`${API_BASE}/auth/login`, 'POST', data);
             displayResult('loginResult', result);
+            
+            if (result.success && result.data.data) {
+                updateAuthState(result.data.data.token, result.data.data.user);
+            }
         }
 
-        async function createOrder() {
+        async function getUserProfile() {
+            const result = await makeRequest(`${API_BASE}/auth/me`, 'GET', null, true);
+            displayResult('profileResult', result);
+        }
+
+        async function updateProfile() {
             const data = {
-                customerName: document.getElementById('customerName').value,
-                customerPhone: document.getElementById('customerPhone').value,
-                items: [
-                    { name: 'Sample Item', quantity: 1, price: parseInt(document.getElementById('orderTotal').value) }
-                ],
-                total: parseInt(document.getElementById('orderTotal').value)
+                firstName: document.getElementById('updateFirstName').value,
+                preferences: {
+                    language: document.getElementById('updateLanguage').value
+                }
             };
 
-            const result = await makeRequest(API_BASE + '/orders', 'POST', data);
-            displayResult('orderResult', result);
+            const result = await makeRequest(`${API_BASE}/auth/profile`, 'PUT', data, true);
+            displayResult('updateResult', result);
         }
 
-        async function getAllUsers() {
-            const result = await makeRequest(API_BASE.replace('/api', '') + '/api/users');
-            displayResult('dataResult', result);
+        async function requestPasswordReset() {
+            const data = {
+                email: document.getElementById('resetEmail').value
+            };
+
+            const result = await makeRequest(`${API_BASE}/auth/forgot-password`, 'POST', data);
+            displayResult('resetResult', result);
         }
 
-        async function getAllOrders() {
-            const result = await makeRequest(API_BASE + '/orders');
-            displayResult('dataResult', result);
+        async function testUnauthorizedAccess() {
+            const result = await makeRequest(`${API_BASE}/auth/me`, 'GET', null, false);
+            displayResult('securityResult', {
+                test: 'Unauthorized Access',
+                success: !result.success, // Should fail
+                expectedBehavior: 'Should be rejected',
+                actualResult: result
+            });
         }
 
-        // Test server on page load
+        async function testInvalidToken() {
+            const tempToken = authToken;
+            authToken = 'invalid-token-12345';
+            
+            const result = await makeRequest(`${API_BASE}/auth/me`, 'GET', null, true);
+            
+            authToken = tempToken; // Restore original token
+            
+            displayResult('securityResult', {
+                test: 'Invalid Token',
+                success: !result.success, // Should fail
+                expectedBehavior: 'Should be rejected',
+                actualResult: result
+            });
+        }
+
+        // Auto-generate random user on page load
         window.onload = () => {
-            testServer();
+            generateRandomUser();
+            testHealth();
         };
     </script>
 </body>
