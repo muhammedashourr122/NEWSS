@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shipping System API Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; }
+        .result { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚚 Shipping System API Tester</h1>
+        
+        <div class="section">
+            <h3>📊 Server Status</h3>
+            <button onclick="testServer()">Test Server</button>
+            <div id="serverResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>👤 User Registration</h3>
+            <input type="text" id="firstName" placeholder="First Name" value="John">
+            <input type="text" id="lastName" placeholder="Last Name" value="Doe">
+            <input type="email" id="email" placeholder="Email" value="john@test.com">
+            <input type="password" id="password" placeholder="Password" value="Test123!">
+            <select id="role">
+                <option value="customer">Customer</option>
+                <option value="merchant">Merchant</option>
+                <option value="driver">Driver</option>
+            </select>
+            <br>
+            <button onclick="registerUser()">Register User</button>
+            <div id="registerResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔐 User Login</h3>
+            <input type="email" id="loginEmail" placeholder="Email" value="admin@shippingsystem.com">
+            <input type="password" id="loginPassword" placeholder="Password" value="Admin123!@#">
+            <br>
+            <button onclick="loginUser()">Login</button>
+            <div id="loginResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>📦 Create Order</h3>
+            <input type="text" id="customerName" placeholder="Customer Name" value="Ahmed Hassan">
+            <input type="tel" id="customerPhone" placeholder="Customer Phone" value="+201234567890">
+            <input type="number" id="orderTotal" placeholder="Total Amount" value="1000">
+            <br>
+            <button onclick="createOrder()">Create Order</button>
+            <div id="orderResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>📋 View All Data</h3>
+            <button onclick="getAllUsers()">Get All Users</button>
+            <button onclick="getAllOrders()">Get All Orders</button>
+            <div id="dataResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+
+        async function makeRequest(url, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(url, options);
+                const result = await response.json();
+                
+                return {
+                    success: response.ok,
+                    data: result,
+                    status: response.status
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            element.className = 'result ' + (result.success ? 'success' : 'error');
+            element.innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        }
+
+        async function testServer() {
+            const result = await makeRequest('http://localhost:5000/');
+            displayResult('serverResult', result);
+        }
+
+        async function registerUser() {
+            const data = {
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+
+            const result = await makeRequest(API_BASE + '/auth/register', 'POST', data);
+            displayResult('registerResult', result);
+        }
+
+        async function loginUser() {
+            const data = {
+                email: document.getElementById('loginEmail').value,
+                password: document.getElementById('loginPassword').value
+            };
+
+            const result = await makeRequest(API_BASE + '/auth/login', 'POST', data);
+            displayResult('loginResult', result);
+        }
+
+        async function createOrder() {
+            const data = {
+                customerName: document.getElementById('customerName').value,
+                customerPhone: document.getElementById('customerPhone').value,
+                items: [
+                    { name: 'Sample Item', quantity: 1, price: parseInt(document.getElementById('orderTotal').value) }
+                ],
+                total: parseInt(document.getElementById('orderTotal').value)
+            };
+
+            const result = await makeRequest(API_BASE + '/orders', 'POST', data);
+            displayResult('orderResult', result);
+        }
+
+        async function getAllUsers() {
+            const result = await makeRequest(API_BASE.replace('/api', '') + '/api/users');
+            displayResult('dataResult', result);
+        }
+
+        async function getAllOrders() {
+            const result = await makeRequest(API_BASE + '/orders');
+            displayResult('dataResult', result);
+        }
+
+        // Test server on page load
+        window.onload = () => {
+            testServer();
+        };
+    </script>
+</body>
+</html>
